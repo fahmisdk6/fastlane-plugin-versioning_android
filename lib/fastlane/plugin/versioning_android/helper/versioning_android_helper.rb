@@ -51,7 +51,7 @@ module Fastlane
         begin
           file = File.new(gradle_file, "r")
           while (line = file.gets)
-            next unless line.include? key
+            next unless line.include? " #{key} "
             components = line.strip.split(' ')
             value = components[components.length - 1].tr("\"", "")
             break
@@ -72,7 +72,7 @@ module Fastlane
           temp_file = Tempfile.new("flSave_#{key}_ToGradleFile")
           File.open(gradle_file, "r") do |file|
             file.each_line do |line|
-              if line.include? key and found == false
+              if line.include? " #{key} " and found == false
                 found = true
                 line.replace line.sub(current_value.to_s, value.to_s)
               end
