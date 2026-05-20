@@ -36,7 +36,7 @@ module Fastlane
                                       type: String,
                              default_value: "app/build.gradle",
                               verify_block: proc do |value|
-                                UI.user_error!("Could not find app build.gradle file") unless File.exist?(value) || Helper.test?
+                                UI.user_error!("Could not find app build.gradle or build.gradle.kts file") unless Helper::VersioningAndroidHelper.gradle_file_exists?(value) || Helper.test?
                               end)
         ]
       end

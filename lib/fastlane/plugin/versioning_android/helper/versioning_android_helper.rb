@@ -8,7 +8,26 @@ module Fastlane
       GRADLE_FILE_TEST = "/tmp/fastlane/tests/versioning/app/build.gradle"
 
       def self.get_gradle_file(gradle_file)
-        return Helper.test? ? GRADLE_FILE_TEST : gradle_file
+        return GRADLE_FILE_TEST if Helper.test?
+        return gradle_file if File.exist?(gradle_file)
+
+        # Auto-detect the Kotlin DSL variant (build.gradle.kts) used by newer Flutter/Android setups
+        kts_variant = "#{gradle_file}.kts"
+        return kts_variant if File.exist?(kts_variant)
+
+        if gradle_file.end_with?(".kts")
+          groovy_variant = gradle_file.sub(/\.kts\z/, "")
+          return groovy_variant if File.exist?(groovy_variant)
+        end
+
+        gradle_file
+      end
+
+      def self.gradle_file_exists?(gradle_file)
+        return true if File.exist?(gradle_file)
+        return true if File.exist?("#{gradle_file}.kts")
+        return true if gradle_file.end_with?(".kts") && File.exist?(gradle_file.sub(/\.kts\z/, ""))
+        false
       end
 
       def self.get_gradle_file_path(gradle_file)
@@ -46,14 +65,20 @@ module Fastlane
         return new_version_name.to_s
       end
 
+      # Matches both Groovy (`versionCode 1`) and Kotlin DSL (`versionCode = 1`) assignments
+      def self.key_line_regex(key)
+        /\A#{Regexp.escape(key)}\b\s*=?\s*(.+)\z/
+      end
+
       def self.read_key_from_gradle_file(gradle_file, key)
         value = false
         begin
           file = File.new(gradle_file, "r")
+          regex = self.key_line_regex(key)
           while (line = file.gets)
-            next unless line.include? " #{key} "
-            components = line.strip.split(' ')
-            value = components[components.length - 1].tr("\"", "")
+            match = line.strip.match(regex)
+            next unless match
+            value = match[1].strip.tr("\"", "")
             break
           end
           file.close
@@ -69,10 +94,11 @@ module Fastlane
 
         begin
           found = false
+          regex = self.key_line_regex(key)
           temp_file = Tempfile.new("flSave_#{key}_ToGradleFile")
           File.open(gradle_file, "r") do |file|
             file.each_line do |line|
-              if line.include? " #{key} " and found == false
+              if !found && line.strip.match?(regex)
                 found = true
                 line.replace line.sub(current_value.to_s, value.to_s)
               end
